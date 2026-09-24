@@ -1828,13 +1828,43 @@ function nextQ(){
   }
 }
 
-function submitTest(){
+async function submitTest() {
   clearInterval(tInt);
+
+  /*
+    Si un lien d’invitation est utilisé, on clôture le parcours dans
+    Google Sheets avant d’afficher la page finale.
+  */
+  if (invitationToken && invitationValidated) {
+    try {
+      const requestUrl = new URL(INVITATION_API_URL);
+
+      requestUrl.searchParams.set("action", "completeTest");
+      requestUrl.searchParams.set("token", invitationToken);
+
+      const response = await fetch(requestUrl.toString());
+      const result = await response.json();
+
+      console.log("Réponse completeTest :", result);
+
+      if (!result.ok) {
+        console.warn(
+          "Impossible de passer l’invitation à TERMINÉ :",
+          result.message || result.code
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Erreur lors de la clôture de l’invitation :",
+        error
+      );
+    }
+  }
 
   showSplashSubmit(() => {
     calcResult();
 
-    go('p-merci');
+    go("p-merci");
     renderResults();
 
     saveToSheets();
