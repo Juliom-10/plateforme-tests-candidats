@@ -1376,18 +1376,49 @@ function closeInviteModal(){
   if(md) md.classList.remove('show');
 }
 
-function openConnexionModal(){
-  const ov = document.getElementById('ov-connexion');
-  const md = document.getElementById('modal-connexion');
-
-  if(!ov || !md){
-    alert('ov-connexion ou modal-connexion introuvable');
+function openConnexionModal() {
+  if (!invitationToken || !invitationValidated) {
+    showInvitationBlock(
+      "Ce parcours est accessible uniquement avec un lien d’invitation personnel valide."
+    );
     return;
   }
 
-  ov.classList.add('show');
-  md.style.display = 'block';
-  md.style.zIndex = '99999';
+  const ov = document.getElementById("ov-connexion");
+  const md = document.getElementById("modal-connexion");
+
+  if (!ov || !md) {
+    alert("La fenêtre de connexion est introuvable.");
+    return;
+  }
+
+  ov.classList.add("show");
+  md.style.display = "block";
+  md.style.zIndex = "99999";
+
+  /*
+    Les champs sont remplis ici, juste après l’ouverture de la modale.
+  */
+  const nomInput = document.getElementById("cx-nom");
+  const prenomInput = document.getElementById("cx-prenom");
+  const emailInput = document.getElementById("cx-email");
+
+  if (invitationCandidate) {
+    if (nomInput) {
+      nomInput.value = invitationCandidate.lastName || "";
+      nomInput.readOnly = true;
+    }
+
+    if (prenomInput) {
+      prenomInput.value = invitationCandidate.firstName || "";
+      prenomInput.readOnly = true;
+    }
+
+    if (emailInput) {
+      emailInput.value = invitationCandidate.email || "";
+      emailInput.readOnly = true;
+    }
+  }
 }
 
 function closeConnexionModal(){
@@ -1408,9 +1439,17 @@ function submitConnexion(){
   const emailInput = document.getElementById('cx-email');
   const err = document.getElementById('cx-error');
 
-  const nom = nomInput ? nomInput.value.trim() : '';
-  const prenom = prenomInput ? prenomInput.value.trim() : '';
-  const email = emailInput ? emailInput.value.trim() : '';
+  const nom = invitationCandidate
+  ? String(invitationCandidate.lastName || "").trim()
+  : (nomInput ? nomInput.value.trim() : "");
+
+const prenom = invitationCandidate
+  ? String(invitationCandidate.firstName || "").trim()
+  : (prenomInput ? prenomInput.value.trim() : "");
+
+const email = invitationCandidate
+  ? String(invitationCandidate.email || "").trim()
+  : (emailInput ? emailInput.value.trim() : "");
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
