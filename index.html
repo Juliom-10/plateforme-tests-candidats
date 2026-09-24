@@ -980,6 +980,139 @@ tbody td{padding:13px 18px;font-size:.88rem}
 </div>
 
 <script>
+
+/* ===== INVITATIONS UNIQUES : DÉBUT ===== */
+const INVITATION_API_URL = "https://script.google.com/macros/s/AKfycby-_1xajGQ6tsuj27HT_nT2cHEPws44xjvk5MjctIJupSnIRe-6jxgKPUXYUTYGGzT7/exec";
+const invitationToken = new URLSearchParams(window.location.search).get("token");
+
+let invitationValidated = false;
+let invitationCandidate = null;
+
+function escapeInvitationHtml(value) {
+  return String(value).replace(/[&<>"']/g, function(character) {
+    return {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[character];
+  });
+}
+
+function showInvitationBlock(message) {
+  document.body.innerHTML = `
+    <main style="
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      padding:24px;
+      box-sizing:border-box;
+      background:linear-gradient(135deg,#001c42,#003882);
+      font-family:Arial,sans-serif;
+    ">
+      <section style="
+        width:min(520px,100%);
+        padding:34px;
+        border-radius:18px;
+        background:#ffffff;
+        box-shadow:0 24px 70px rgba(0,0,0,.30);
+        color:#16335b;
+        text-align:center;
+      ">
+        <div style="font-size:2rem;margin-bottom:12px;">🔒</div>
+        <h1 style="margin:0 0 12px;font-size:1.55rem;">
+          Accès au parcours indisponible
+        </h1>
+        <p style="margin:0;color:#58708d;line-height:1.55;">
+          ${escapeInvitationHtml(message)}
+        </p>
+      </section>
+    </main>
+  `;
+}
+
+function prefillCandidateIdentity() {
+  if (!invitationCandidate) {
+    return;
+  }
+
+  /*
+    Ton formulaire de connexion utilise les identifiants suivants :
+    cx-nom, cx-prenom, cx-email.
+    Nous remplissons automatiquement ces champs avec les données saisies
+    dans l’espace RH et empêchons leur modification.
+  */
+  const nomInput = document.getElementById("cx-nom");
+  const prenomInput = document.getElementById("cx-prenom");
+  const emailInput = document.getElementById("cx-email");
+
+  if (nomInput) {
+    nomInput.value = invitationCandidate.lastName || "";
+    nomInput.readOnly = true;
+  }
+
+  if (prenomInput) {
+    prenomInput.value = invitationCandidate.firstName || "";
+    prenomInput.readOnly = true;
+  }
+
+  if (emailInput) {
+    emailInput.value = invitationCandidate.email || "";
+    emailInput.readOnly = true;
+  }
+}
+
+async function validateInvitationOnLoad() {
+  if (!invitationToken) {
+    showInvitationBlock(
+      "Ce parcours est accessible uniquement avec un lien d’invitation personnel envoyé par l’équipe recrutement."
+    );
+    return;
+  }
+
+  try {
+    const requestUrl = new URL(INVITATION_API_URL);
+
+    requestUrl.searchParams.set("action", "validateInvitation");
+    requestUrl.searchParams.set("token", invitationToken);
+
+    const response = await fetch(requestUrl.toString());
+    const result = await response.json();
+
+    if (!result.ok) {
+      showInvitationBlock(
+        result.message ||
+        "Ce lien d’invitation est invalide ou n’est plus disponible."
+      );
+      return;
+    }
+
+    invitationValidated = true;
+    invitationCandidate = result.candidate || null;
+
+    /*
+      On attend que l’ensemble du HTML soit chargé pour retrouver
+      les champs cx-nom / cx-prenom / cx-email de ta modale.
+    */
+    setTimeout(prefillCandidateIdentity, 0);
+  } catch (error) {
+    console.error("Erreur lors de la vérification de l’invitation :", error);
+
+    showInvitationBlock(
+      "La vérification de votre invitation est momentanément indisponible. Merci de réessayer dans quelques instants."
+    );
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", validateInvitationOnLoad);
+} else {
+  validateInvitationOnLoad();
+}
+
+/* ===== INVITATIONS UNIQUES : FIN ===== */
+
 const DISC_PROFILS = {
   'D':  { label:'Dominant',         color:'#ef4444' },
   'I':  { label:'Influent',         color:'#f97316' },
@@ -1374,18 +1507,72 @@ function showSplashSubmit(onDone){
   setTimeout(()=>{el.classList.remove('show');onDone();},2200);
 }
 
-function startTest(){
-  cQ=0;ans={};tLeft=35*60;clearInterval(tInt);
-  tInt=setInterval(()=>{
-    tLeft--;
-    const m=Math.floor(tLeft/60),s=tLeft%60;
-    const el=document.getElementById('timer');
-    if(el){el.textContent=m+':'+(s<10?'0':'')+s;el.classList.toggle('urgent',tLeft<300);}
-    if(tLeft<=0){clearInterval(tInt);submitTest();}
-  },1000);
-    go('p-test');
-  renderMods();
-  showModTransition(0,()=>renderQ());
+async function startTest() {
+  if (!invitationToken || !invitationValidated) {
+    alert(
+      "Veuillez ouvrir le parcours depuis votre lien d’invitation personnel."
+    );
+    return;
+  }
+
+  const startButton = document.activeElement;
+
+  if (startButton && startButton.tagName === "BUTTON") {
+    startButton.disabled = true;
+    startButton.textContent = "Préparation du parcours…";
+  }
+
+  try {
+    const requestUrl = new URL(INVITATION_API_URL);
+    requestUrl.searchParams.set("action", "startTest");
+    requestUrl.searchParams.set("token", invitationToken);
+
+    const response = await fetch(requestUrl.toString());
+    const result = await response.json();
+
+    if (!result.ok) {
+      showInvitationBlock(
+        result.message || "Ce lien ne peut plus être utilisé."
+      );
+      return;
+    }
+
+    cQ = 0;
+    ans = {};
+    tLeft = 35 * 60;
+    clearInterval(tInt);
+
+    tInt = setInterval(() => {
+      tLeft--;
+
+      const m = Math.floor(tLeft / 60);
+      const s = tLeft % 60;
+      const el = document.getElementById("timer");
+
+      if (el) {
+        el.textContent = m + ":" + (s < 10 ? "0" : "") + s;
+        el.classList.toggle("urgent", tLeft < 300);
+      }
+
+      if (tLeft <= 0) {
+        clearInterval(tInt);
+        submitTest();
+      }
+    }, 1000);
+
+    go("p-test");
+    renderMods();
+    showModTransition(0, () => renderQ());
+  } catch (error) {
+    alert(
+      "Impossible de démarrer le parcours pour le moment. Vérifie votre connexion, puis réessaie."
+    );
+
+    if (startButton && startButton.tagName === "BUTTON") {
+      startButton.disabled = false;
+      startButton.textContent = "Commencer le parcours";
+    }
+  }
 }
 
 function renderMods(){
